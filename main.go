@@ -7,9 +7,9 @@ import (
 	"chevereto2LskyPro/common"
 	"chevereto2LskyPro/model"
 	"chevereto2LskyPro/sql"
+	"encoding/json"
 	"fmt"
 	"os"
-	"path"
 	"regexp"
 	"strconv"
 )
@@ -155,7 +155,7 @@ func changeData(startAt int) {
 		}
 	}
 	// 查询并转换所有的图片
-	if data, err := sql.Db1Dql("SELECT COALESCE(image_user_id, ''), COALESCE(image_album_id, ''), image_date, image_name, image_original_filename, image_size, image_extension, image_md5, image_width, image_height, image_nsfw, image_uploader_ip FROM " + prefix1 + "images"); err == nil {
+	if data, err := sql.Db1Dql("SELECT COALESCE(image_user_id, ''), COALESCE(image_album_id, ''), image_date, image_name, image_original_filename, image_size, image_extension, image_md5, image_width, image_height, image_nsfw, image_uploader_ip FROM " + prefix1 + "images"); err == nil && startAt != 4 {
 		fmt.Printf("总计%d张图片, 开始转换\n", len(data))
 		errNum := 0
 		for k, v := range data {
@@ -182,7 +182,7 @@ func changeData(startAt int) {
 			lsky.Key = common.RandString(6)
 			// 路径
 			create := common.Str2time(v[2])
-			lsky.Path = "images/" + common.Time2String(create, false)
+			lsky.Path = common.Time2String(create, false)
 			// 图片名
 			lsky.Name = v[3] + "." + v[6]
 			// 原始文件名
@@ -244,11 +244,69 @@ func changeData(startAt int) {
 			fmt.Println(err)
 		}
 	}
+	// 更新策略
+	{
+		fmt.Println("开始更新策略")
+		config, err := sql.Db2Dql("SELECT configs from " + prefix2 + "strategies WHERE id = 1")
+		if err != nil || config[0][0] == "" {
+			fmt.Println("策略更新失败, 错误信息: ", err)
+			return
+		}
+		// 解析json
+		var data map[string]interface{}
+		err = json.Unmarshal([]byte(config[0][0]), &data)
+		if err != nil {
+			fmt.Println("策略更新失败, 错误信息: ", err)
+			return
+		}
+		host := data["url"].(string)
+		pattern := regexp.MustCompile("^http(s)?://.+?/")
+		host = pattern.FindString(host)
+		if host == "" {
+			fmt.Println("策略更新失败, 错误信息: ", "无法找到域名")
+			return
+		}
+		targetPath := data["root"].(string)
+		path := common.GetConfigString("img", "path") + "/public/images"
+		data["url"] = host + "images"
+
+		symErr := os.Symlink(targetPath, path)
+		if symErr == nil {
+			fmt.Println("软链接创建成功")
+		} else {
+			fmt.Println("软链接创建失败, 错误信息: ", symErr)
+		}
+
+		// 更新数据库
+		json, DbErr := json.Marshal(data)
+		if DbErr != nil {
+			fmt.Println("数据库更新失败, 错误信息: ", err)
+			return
+		}
+		_, DbErr = sql.Db2Dml("UPDATE "+prefix2+"strategies SET configs = ? WHERE id = 1", json)
+		if DbErr == nil {
+			fmt.Println("数据库更新成功")
+		} else {
+			fmt.Println("数据库更新失败, 错误信息: ", err)
+		}
+
+		if symErr == nil && DbErr == nil {
+			fmt.Println("策略更新成功")
+			return
+		}
+		fmt.Println("策略更新部分失败")
+	}
+	fmt.Println("转换全部完成!!!")
 }
 
 // 删除多余图片
 func deleteMoreImage() {
-	path := common.GetConfigString("img", "path")
+	path, err := os.Readlink(common.GetConfigString("img", "path") + "/public/images")
+	if err != nil {
+		fmt.Println("读取文件夹失败, 错误信息: ", err)
+		return
+	}
+	path += "/"
 	list := new([]string)
 	// 获取所有的文件
 	if common.GetAllFile(path, list) != nil {
@@ -272,40 +330,19 @@ func deleteMoreImage() {
 	fmt.Printf("已为你删除%d个文件, 删除失败%d个", total, errNUm)
 }
 
-// 创建软链接
-func createSymlink() {
-	targetPath := path.Dir(common.GetConfigString("img", "path"))
-	path, err := os.Readlink(path.Dir(targetPath) + "/i")
-	if err != nil {
-		fmt.Println("软链接创建失败, 错误信息: " + err.Error())
-		return
-	}
-	path += "/images"
-
-	fmt.Println("开始软链接 " + path + " 到 " + targetPath)
-	err = os.Symlink(targetPath, path)
-	if err != nil {
-		fmt.Println("软链接创建失败, 错误信息: " + err.Error())
-	} else {
-		fmt.Println("软链接创建成功")
-	}
-}
-
 // 转换函数
 func main() {
 	var input int
 	// 是否需要删除重复文件
-	fmt.Printf("欢迎使用图床转换工具\n请选择操作(1转换数据库 2删除重复文件 3创建软链接):")
+	fmt.Printf("欢迎使用图床转换工具\n请选择操作(1转换数据库 2删除重复文件):")
 	if _, err := fmt.Scan(&input); err == nil && input == 1 {
-		fmt.Printf("请选择从哪个步骤开始(1从转移用户&相册开始 2从转移用户开始 3从转移图片开始):")
-		if _, err := fmt.Scan(&input); err == nil && (input == 1 || input == 2 || input == 3) {
+		fmt.Printf("请选择从哪个步骤开始(1从转移用户&相册开始 2从转移用户开始 3从转移图片开始 4从更新策略开始):")
+		if _, err := fmt.Scan(&input); err == nil && (input == 1 || input == 2 || input == 3 || input == 4) {
 			changeData(input)
 		} else {
 			fmt.Println("输入错误")
 		}
 	} else if err == nil && input == 2 {
-		createSymlink()
-	} else if err == nil && input == 3 {
 		deleteMoreImage()
 	} else if err != nil {
 		fmt.Println(err)
