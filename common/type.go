@@ -3,6 +3,7 @@
 package common
 
 import (
+	"database/sql"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -175,4 +176,14 @@ func RandString(n int) string {
 		b[i] = letterBytes[rand.Intn(len(letterBytes))]
 	}
 	return string(b)
+}
+
+func NewNullString(s string) sql.NullString {
+	if len(s) == 0 {
+		return sql.NullString{}
+	}
+	return sql.NullString{
+		String: s,
+		Valid:  true,
+	}
 }

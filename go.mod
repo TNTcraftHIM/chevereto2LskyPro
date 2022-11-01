@@ -1,4 +1,4 @@
-module img
+module chevereto2LskyPro
 
 go 1.14
 
