@@ -3,10 +3,12 @@
 package common
 
 import (
-	"go.mongodb.org/mongo-driver/bson"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
+
+	"go.mongodb.org/mongo-driver/bson"
 )
 
 //接口转string
@@ -161,4 +163,16 @@ func Str2Bool(data string) bool {
 		return true
 	}
 	return false
+}
+
+// 随机生成字符串
+const letterBytes = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+func RandString(n int) string {
+	rand.Seed(time.Now().UnixNano())
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
 }
