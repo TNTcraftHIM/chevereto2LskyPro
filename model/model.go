@@ -7,12 +7,14 @@ import "database/sql"
 
 type LskyUsers struct {
 	ID              int     // 用户ID
+	Username        string  // 用户名
 	GroupID         int     // 用户组
 	Name            string  // 姓名
 	Email           string  // 邮箱
 	Password        string  // 密码
 	IsAdminer       int     // 是否是管理员
 	Capacity        float64 // 容量
+	Size            float64 // 已用容量
 	Configs         string  // 配置
 	ImageNum        int     // 图片数量
 	AlbumNum        int     // 相册数量
@@ -25,11 +27,14 @@ type LskyUsers struct {
 type LskyAlbums struct {
 	ID        int    // 相册ID
 	UserID    string // 用户
+	Backgound string // 背景
+	Cover     string // 封面
 	Name      string // 名称
 	Intro     string // 简介
 	ImageNum  int    // 图片数量
 	CreatedAt string // 创建时间
 	UpdatedAt string // 更新时间
+	Key       string // key
 }
 
 type LskyImages struct {

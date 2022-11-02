@@ -32,7 +32,7 @@ func changeData(startAt int) {
 	log.Println("开始转换数据库")
 
 	// 查询并转换所有用户
-	if data, err := sql.Db1Dql("SELECT user_id, COALESCE(user_name, ''), user_email, login_secret, user_is_admin, user_image_count, user_album_count, user_registration_ip, user_date FROM (SELECT * FROM " + prefix1 + "users JOIN " + prefix1 + "logins ON " + prefix1 + "logins.login_user_id = user_id AND " + prefix1 + "logins.login_type = 'password' ) AS p WHERE user_status = 'valid'"); err == nil && (startAt == 1 || startAt == 2) {
+	if data, err := sql.Db1Dql("SELECT user_id, user_username, COALESCE(user_name, ''), user_email, login_secret, user_is_admin, user_image_count, user_album_count, user_registration_ip, user_date FROM (SELECT * FROM " + prefix1 + "users JOIN " + prefix1 + "logins ON " + prefix1 + "logins.login_user_id = user_id AND " + prefix1 + "logins.login_type = 'password' ) AS p WHERE user_status = 'valid'"); err == nil && (startAt == 1 || startAt == 2) {
 		capacity := common.GetConfigString("config", "Capacity")
 		configs := common.GetConfigString("config", "Configs")
 		groupID := common.GetConfigString("config", "GroupID")
@@ -52,14 +52,16 @@ func changeData(startAt int) {
 			if err != nil {
 				lsky.GroupID = 1
 			}
+			// 用户名
+			lsky.Username = v[1]
 			// 姓名
-			lsky.Name = v[1]
+			lsky.Name = v[2]
 			// 邮箱
-			lsky.Email = v[2]
+			lsky.Email = v[3]
 			// 密码
-			lsky.Password = v[3]
+			lsky.Password = v[4]
 			// 是否是管理员
-			lsky.IsAdminer, err = strconv.Atoi(v[4])
+			lsky.IsAdminer, err = strconv.Atoi(v[5])
 			if err != nil {
 				lsky.IsAdminer = 0
 			}
@@ -68,32 +70,34 @@ func changeData(startAt int) {
 			if err != nil {
 				lsky.Capacity = 524288
 			}
+			// 已用容量
+			lsky.Size = 0
 			// 配置
 			lsky.Configs = configs
 			// 图片数量
-			lsky.ImageNum, err = strconv.Atoi(v[5])
+			lsky.ImageNum, err = strconv.Atoi(v[6])
 			if err != nil {
 				lsky.ImageNum = 0
 			}
 			// 相册数量
-			lsky.AlbumNum, err = strconv.Atoi(v[6])
+			lsky.AlbumNum, err = strconv.Atoi(v[7])
 			if err != nil {
 				lsky.AlbumNum = 0
 			}
 			// 注册ip
-			lsky.RegisteredIp = v[7]
+			lsky.RegisteredIp = v[8]
 			// 注册时间
-			lsky.EmailVerifiedAt = v[8]
+			lsky.EmailVerifiedAt = v[9]
 			// 创建时间
-			lsky.CreatedAt = v[8]
+			lsky.CreatedAt = v[9]
 			// 更新时间
-			lsky.UpdatedAt = v[8]
+			lsky.UpdatedAt = v[9]
 
 			// 开始插入
 			success, err := sql.Db2Dml(`INSERT delayed INTO `+prefix2+`users
-			(id,group_id,name,email,password,is_adminer,capacity,configs,image_num,album_num,registered_ip,email_verified_at,created_at,updated_at) 
+			(id,group_id,username,name,email,password,is_adminer,capacity,configs,image_num,album_num,registered_ip,email_verified_at,created_at,updated_at) 
 			VALUES 
-			(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, lsky.ID, lsky.GroupID, lsky.Name, lsky.Email, lsky.Password, lsky.IsAdminer, lsky.Capacity, lsky.Configs, lsky.ImageNum, lsky.AlbumNum, lsky.RegisteredIp, lsky.EmailVerifiedAt, lsky.CreatedAt, lsky.UpdatedAt)
+			(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, lsky.ID, lsky.GroupID, lsky.Username, lsky.Name, lsky.Email, lsky.Password, lsky.IsAdminer, lsky.Capacity, lsky.Configs, lsky.ImageNum, lsky.AlbumNum, lsky.RegisteredIp, lsky.EmailVerifiedAt, lsky.CreatedAt, lsky.UpdatedAt)
 			if success && err == nil {
 				log.Printf("第%d位用户转换成功!\n", k)
 			} else {
@@ -110,6 +114,8 @@ func changeData(startAt int) {
 	}
 	// 查询并转换所有相册
 	if data, err := sql.Db1Dql("SELECT album_id, album_user_id, album_name, COALESCE(album_description, ''), album_image_count, album_date FROM " + prefix1 + "albums WHERE album_user_id IS NOT NULL"); err == nil && startAt == 1 {
+		backgound := common.GetConfigString("config", "Backgound")
+		cover := common.GetConfigString("config", "Cover")
 		log.Printf("总计%d个相册, 开始转换\n", len(data))
 		errNum := 0
 		for k, v := range data {
@@ -123,6 +129,10 @@ func changeData(startAt int) {
 			}
 			// 用户id
 			lsky.UserID = v[1]
+			// 背景图
+			lsky.Backgound = backgound
+			// 封面图
+			lsky.Cover = cover
 			// 相册名
 			lsky.Name = v[2]
 			// 相册描述
@@ -136,12 +146,13 @@ func changeData(startAt int) {
 			lsky.CreatedAt = v[5]
 			// 更新时间
 			lsky.UpdatedAt = v[5]
-
+			// key
+			lsky.Key = common.RandString(6)
 			// 开始插入
 			success, err := sql.Db2Dml(`INSERT delayed INTO `+prefix2+`albums
-			(id, user_id,name,intro,image_num,created_at) 
+			(id,user_id,background,cover,name,intro,image_num,created_at,`+prefix2+`albums.key) 
 			VALUES 
-			(?,?,?,?,?,?)`, lsky.ID, lsky.UserID, lsky.Name, lsky.Intro, lsky.ImageNum, lsky.CreatedAt)
+			(?,?,?,?,?,?,?,?,?)`, lsky.ID, lsky.UserID, lsky.Backgound, lsky.Cover, lsky.Name, lsky.Intro, lsky.ImageNum, lsky.CreatedAt, lsky.Key)
 			if success && err == nil {
 				log.Printf("第%d个相册转换成功!\n", k)
 			} else {
@@ -220,7 +231,7 @@ func changeData(startAt int) {
 			// 高度
 			lsky.Height = v[9]
 			// 是否为不健康
-			lsky.IsUnhealthy = v[10]
+			lsky.IsUnhealthy = "0"
 			// 上传ip
 			lsky.UploadedIP = v[11]
 			// 上传时间
