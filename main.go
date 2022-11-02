@@ -231,7 +231,7 @@ func changeData(startAt int) {
 			// 高度
 			lsky.Height = v[9]
 			// 是否为不健康
-			lsky.IsUnhealthy = "0"
+			lsky.IsUnhealthy = v[10]
 			// 上传ip
 			lsky.UploadedIP = v[11]
 			// 上传时间
